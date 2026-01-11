@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from app.core.config import settings
-from app.core.database import test_connection
+from app.core.database import test_connection, init_db
 from app.api.v1.routes import api_router
 
 @asynccontextmanager
@@ -14,6 +14,7 @@ async def lifespan(app: FastAPI):
     # Startup
     print("[INFO] Starting PropelSense API...")
     test_connection()
+    init_db()
     yield
     # Shutdown
     print("[INFO] Shutting down PropelSense API...")
