@@ -3,8 +3,20 @@ FastAPI Application Entry Point
 """
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from contextlib import asynccontextmanager
 from app.core.config import settings
-from app.api.v1 import api_router
+from app.core.database import test_connection
+from app.api.v1.routes import api_router
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Lifespan event handler"""
+    # Startup
+    print("[INFO] Starting PropelSense API...")
+    test_connection()
+    yield
+    # Shutdown
+    print("[INFO] Shutting down PropelSense API...")
 
 # Create FastAPI app
 app = FastAPI(
@@ -13,6 +25,7 @@ app = FastAPI(
     version=settings.API_VERSION,
     docs_url="/docs",
     redoc_url="/redoc",
+    lifespan=lifespan,
 )
 
 # Configure CORS
@@ -26,7 +39,6 @@ app.add_middleware(
 
 # Include API router
 app.include_router(api_router, prefix=f"/api/{settings.API_VERSION}")
-
 
 @app.get("/")
 async def root():
@@ -42,7 +54,6 @@ async def root():
 async def health_check():
     """Health check endpoint"""
     return {"status": "healthy", "version": settings.API_VERSION}
-
 
 if __name__ == "__main__":
     import uvicorn
