@@ -15,6 +15,17 @@ async def lifespan(app: FastAPI):
     print("[INFO] Starting PropelSense API...")
     test_connection()
     init_db()
+    
+    # Pre-load ML service and XGBoost model
+    print("[INFO] Initializing ML service...")
+    from app.services.ml_service import get_ml_service
+    ml_service = get_ml_service()
+    try:
+        ml_service.load_model()
+        print("[INFO] XGBoost model loaded successfully (993 KB)")
+    except Exception as e:
+        print(f"[WARNING] Failed to pre-load XGBoost model: {e}")
+    
     yield
     # Shutdown
     print("[INFO] Shutting down PropelSense API...")
