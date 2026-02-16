@@ -1,6 +1,7 @@
 # ML Integration for Backend
 
 ## Overview
+
 This backend integrates the XGBoost model for vessel propulsion power prediction. The model is hosted on Hugging Face Hub and downloaded/cached locally (993 KB).
 
 ## Why Only XGBoost?
@@ -15,11 +16,13 @@ This backend integrates the XGBoost model for vessel propulsion power prediction
 ## Available Endpoints
 
 ### 1. Predict Power
+
 **POST** `/api/v1/ml/predict/power`
 
 Predict vessel propulsion power.
 
 **Request:**
+
 ```json
 {
   "features": {
@@ -38,6 +41,7 @@ Predict vessel propulsion power.
 ```
 
 **Response:**
+
 ```json
 {
   "predicted_power_kw": 18500.5,
@@ -56,11 +60,13 @@ Predict vessel propulsion power.
 ```
 
 ### 2. Get Model Info
+
 **GET** `/api/v1/ml/models/available`
 
 Get XGBoost model information.
 
 **Response:**
+
 ```json
 {
   "models": {
@@ -78,11 +84,13 @@ Get XGBoost model information.
 ```
 
 ### 3. Check Model Status
+
 **GET** `/api/v1/ml/models/status`
 
 Check if model is loaded in memory.
 
 **Response:**
+
 ```json
 {
   "xgboost_loaded": true,
@@ -96,6 +104,7 @@ Check if model is loaded in memory.
 ## Model Performance
 
 ### XGBoost
+
 - **Size**: 993 KB
 - **In-Distribution**: MAE 866 kW, R² 0.978
 - **Out-of-Distribution**: MAE 1,435 kW, R² 0.896
@@ -105,12 +114,14 @@ Check if model is loaded in memory.
 ## Installation
 
 1. Install ML dependencies:
+
 ```bash
 cd backend
 pip install -r requirements.txt
 ```
 
 2. Start the server:
+
 ```bash
 python run.py
 ```
@@ -149,6 +160,7 @@ print(f"Model: {result['model_used']}")
 ## Features
 
 ### Input Features (10 base features)
+
 1. `draft_aft_telegram` - Aft draft (m)
 2. `draft_fore_telegram` - Forward draft (m)
 3. `stw` - Speed through water (knots)
@@ -161,7 +173,9 @@ print(f"Model: {result['model_used']}")
 10. `timeSinceDryDock` - Days since last dry dock
 
 ### Derived Features (9 features, auto-calculated)
+
 The service automatically derives:
+
 - `stw_cubed`, `stw_squared` - Speed features
 - `mean_draft`, `draft_diff` - Draft features
 - `awind_speed`, `awind_direction` - Wind features
