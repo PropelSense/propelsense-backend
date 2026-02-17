@@ -2,7 +2,8 @@
 Pydantic schemas for ML prediction
 """
 from pydantic import BaseModel, Field
-from typing import Literal, Dict, Optional
+from typing import Literal, Dict, Optional, List
+from datetime import datetime
 
 class VesselFeatures(BaseModel):
     """Input features for vessel power prediction"""
@@ -47,18 +48,25 @@ class VesselFeatures(BaseModel):
 class PowerPredictionRequest(BaseModel):
     """Request for power prediction"""
     features: VesselFeatures
+    save_to_history: bool = Field(
+        default=True,
+        description="Save this prediction to user's history"
+    )
 
 
 class PowerPredictionResponse(BaseModel):
     """Response from power prediction"""
+    id: Optional[int] = Field(None, description="Prediction history ID (if saved)")
     predicted_power_kw: float = Field(..., description="Predicted power in kilowatts")
     predicted_power_mw: float = Field(..., description="Predicted power in megawatts")
     model_used: str = Field(..., description="Model that was used")
     metadata: Dict = Field(..., description="Additional information about prediction")
+    created_at: Optional[datetime] = Field(None, description="Timestamp of prediction")
     
     class Config:
         json_schema_extra = {
             "example": {
+                "id": 123,
                 "predicted_power_kw": 18500.5,
                 "predicted_power_mw": 18.5,
                 "model_used": "xgboost",
@@ -70,9 +78,62 @@ class PowerPredictionResponse(BaseModel):
                         "mae_dev_in": 866,
                         "r2_dev_in": 0.978
                     }
-                }
+                },
+                "created_at": "2026-02-17T10:30:00"
             }
         }
+
+
+class PredictionHistoryResponse(BaseModel):
+    """Response schema for prediction history"""
+    id: int
+    user_id: str
+    user_email: Optional[str]
+    
+    # Input features
+    draft_aft_telegram: Optional[float]
+    draft_fore_telegram: Optional[float]
+    stw: Optional[float]
+    diff_speed_overground: Optional[float]
+    awind_vcomp_provider: Optional[float]
+    awind_ucomp_provider: Optional[float]
+    rcurrent_vcomp: Optional[float]
+    rcurrent_ucomp: Optional[float]
+    comb_wind_swell_wave_height: Optional[float]
+    timeSinceDryDock: Optional[float]
+    
+    # Prediction results
+    predicted_power_kw: float
+    predicted_power_mw: float
+    
+    # Model info
+    model_used: str
+    model_metadata: Optional[Dict]
+    
+    # Timestamps
+    created_at: datetime
+    updated_at: datetime
+    
+    class Config:
+        from_attributes = True
+
+
+class PredictionHistoryListResponse(BaseModel):
+    """Response for list of prediction history"""
+    total: int
+    predictions: List[PredictionHistoryResponse]
+    page: int
+    page_size: int
+
+
+class PredictionStatsResponse(BaseModel):
+    """Statistics about user's predictions"""
+    total_predictions: int
+    avg_power_kw: float
+    max_power_kw: float
+    min_power_kw: float
+    most_recent: Optional[datetime]
+    predictions_this_month: int
 
 
 class AvailableModelsResponse(BaseModel):
@@ -91,12 +152,6 @@ class AvailableModelsResponse(BaseModel):
                             "mae": 866,
                             "r2": 0.978
                         }
-                    },
-                    "random_forest": {
-                        "name": "Random Forest",
-                        "recommended": False,
-                        "size": "17 GB",
-                        "warning": "Very large, may cause memory issues"
                     }
                 }
             }
