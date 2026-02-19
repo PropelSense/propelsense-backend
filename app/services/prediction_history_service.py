@@ -64,7 +64,7 @@ class PredictionHistoryService:
             rcurrent_vcomp=input_features.get("rcurrent_vcomp"),
             rcurrent_ucomp=input_features.get("rcurrent_ucomp"),
             comb_wind_swell_wave_height=input_features.get("comb_wind_swell_wave_height"),
-            timeSinceDryDock=input_features.get("timeSinceDryDock"),
+            time_since_dry_dock=input_features.get("timeSinceDryDock"),
             # Predictions
             predicted_power_kw=predicted_power_kw,
             predicted_power_mw=predicted_power_mw,

@@ -29,7 +29,7 @@ class PredictionHistory(Base):
     rcurrent_vcomp = Column(Float)
     rcurrent_ucomp = Column(Float)
     comb_wind_swell_wave_height = Column(Float)
-    timeSinceDryDock = Column(Float)
+    time_since_dry_dock = Column(Float)
     
     # Prediction results
     predicted_power_kw = Column(Float, nullable=False)
