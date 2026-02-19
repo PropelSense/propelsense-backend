@@ -65,7 +65,7 @@ def migrate():
         ALTER TABLE prediction_history ADD COLUMN IF NOT EXISTS comb_wind_swell_wave_height FLOAT;
         """,
         """
-        ALTER TABLE prediction_history ADD COLUMN IF NOT EXISTS timeSinceDryDock FLOAT;
+        ALTER TABLE prediction_history ADD COLUMN IF NOT EXISTS time_since_dry_dock FLOAT;
         """,
         """
         ALTER TABLE prediction_history ADD COLUMN IF NOT EXISTS predicted_power_kw FLOAT NOT NULL DEFAULT 0;
