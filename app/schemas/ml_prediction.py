@@ -1,7 +1,7 @@
 """
 Pydantic schemas for ML prediction
 """
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from typing import Literal, Dict, Optional, List
 from datetime import datetime
 
@@ -86,6 +86,8 @@ class PowerPredictionResponse(BaseModel):
 
 class PredictionHistoryResponse(BaseModel):
     """Response schema for prediction history"""
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
+
     id: int
     user_id: str
     user_email: Optional[str]
@@ -100,7 +102,8 @@ class PredictionHistoryResponse(BaseModel):
     rcurrent_vcomp: Optional[float]
     rcurrent_ucomp: Optional[float]
     comb_wind_swell_wave_height: Optional[float]
-    timeSinceDryDock: Optional[float]
+    # DB column is time_since_dry_dock, API response uses timeSinceDryDock
+    timeSinceDryDock: Optional[float] = Field(None, validation_alias="time_since_dry_dock")
     
     # Prediction results
     predicted_power_kw: float
@@ -113,9 +116,6 @@ class PredictionHistoryResponse(BaseModel):
     # Timestamps
     created_at: datetime
     updated_at: datetime
-    
-    class Config:
-        from_attributes = True
 
 
 class PredictionHistoryListResponse(BaseModel):
