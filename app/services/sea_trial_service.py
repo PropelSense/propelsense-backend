@@ -7,6 +7,7 @@ from datetime import datetime
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 import logging
+import math
 
 from app.models.sea_trial import SeaTrial, TrialStatus
 from app.schemas.sea_trial import (
@@ -15,8 +16,10 @@ from app.schemas.sea_trial import (
     SeaTrialResponse,
     PerformanceComparison,
     SeaTrialAnalysis,
-    SeaTrialSummary
+    SeaTrialSummary,
+    MLPredictionResult
 )
+from app.services.ml_service import get_ml_service
 
 logger = logging.getLogger(__name__)
 
@@ -133,6 +136,111 @@ class SeaTrialService:
         
         return trial
     
+    def predict_from_ml(self, trial: SeaTrial) -> tuple[Optional[float], dict]:
+        """
+        Run the XGBoost ML model on a sea trial's environmental conditions
+        to predict shaft power in kW.
+
+        Maps sea trial fields → ML VesselFeatures:
+          - draft_aft / draft_fore  → draft_aft_telegram / draft_fore_telegram
+          - actual_speed (knots)    → stw
+          - wind_speed + direction  → awind_ucomp_provider / awind_vcomp_provider  (m/s)
+          - current_speed + dir     → rcurrent_ucomp / rcurrent_vcomp              (m/s)
+          - wave_height             → comb_wind_swell_wave_height
+          - time_since_dry_dock     → timeSinceDryDock
+
+        Returns:
+            Tuple of (predicted_power_kw, features_used_dict) or (None, {})
+        """
+        stw = trial.actual_speed
+        draft_aft = trial.draft_aft
+        draft_fore = trial.draft_fore
+
+        if stw is None or draft_aft is None or draft_fore is None:
+            logger.warning(
+                f"Missing required ML features (stw/draft) for trial {trial.sea_trial_id}"
+            )
+            return None, {}
+
+        # Convert knots → m/s  (1 knot = 0.514444 m/s)
+        KNOTS_TO_MS = 0.514444
+
+        wind_speed_ms = (trial.wind_speed or 0.0) * KNOTS_TO_MS
+        wind_dir_rad = math.radians(trial.wind_direction or 0.0)
+        awind_ucomp = wind_speed_ms * math.cos(wind_dir_rad)
+        awind_vcomp = wind_speed_ms * math.sin(wind_dir_rad)
+
+        current_speed_ms = (trial.current_speed or 0.0) * KNOTS_TO_MS
+        current_dir_rad = math.radians(trial.current_direction or 0.0)
+        rcurrent_ucomp = current_speed_ms * math.cos(current_dir_rad)
+        rcurrent_vcomp = current_speed_ms * math.sin(current_dir_rad)
+
+        features = {
+            "draft_aft_telegram": float(draft_aft),
+            "draft_fore_telegram": float(draft_fore),
+            "stw": float(stw),
+            "diff_speed_overground": 0.0,
+            "awind_vcomp_provider": awind_vcomp,
+            "awind_ucomp_provider": awind_ucomp,
+            "rcurrent_vcomp": rcurrent_vcomp,
+            "rcurrent_ucomp": rcurrent_ucomp,
+            "comb_wind_swell_wave_height": float(trial.wave_height or 0.0),
+            "timeSinceDryDock": float(trial.time_since_dry_dock or 0.0),
+        }
+
+        try:
+            ml_service = get_ml_service()
+            predicted_kw, _ = ml_service.predict(features)
+            return float(predicted_kw), features
+        except Exception as e:
+            logger.error(f"ML prediction failed for trial {trial.sea_trial_id}: {e}")
+            return None, features
+
+    def run_ml_prediction(self, trial_id: int, update_trial: bool = True) -> Optional[MLPredictionResult]:
+        """
+        Run the ML model for a sea trial and optionally persist the predicted_power.
+
+        Args:
+            trial_id: Sea trial to predict for
+            update_trial: If True, save the ML result to trial.predicted_power
+
+        Returns:
+            MLPredictionResult or None if trial not found
+        """
+        trial = self.get_trial(trial_id)
+        if not trial:
+            return None
+
+        predicted_kw, features_used = self.predict_from_ml(trial)
+
+        if predicted_kw is None:
+            raise ValueError(
+                "Cannot run ML prediction: trial is missing required fields "
+                "(actual_speed, draft_fore, draft_aft)."
+            )
+
+        if update_trial:
+            trial.predicted_power = predicted_kw
+            trial = self.update_trial_analysis(trial)
+            self.db.commit()
+            self.db.refresh(trial)
+            logger.info(
+                f"ML prediction saved to trial {trial_id}: {predicted_kw:.1f} kW"
+            )
+
+        return MLPredictionResult(
+            sea_trial_id=trial_id,
+            predicted_power_kw=round(predicted_kw, 2),
+            predicted_power_mw=round(predicted_kw / 1000, 4),
+            updated=update_trial,
+            message=(
+                f"ML model predicted {predicted_kw:.1f} kW shaft power."
+                + (" Trial updated." if update_trial else " Trial not updated (dry-run).")
+            ),
+            features_used=features_used,
+            trial=SeaTrialResponse.model_validate(trial) if update_trial else None,
+        )
+
     def create_trial(self, trial_data: SeaTrialCreate) -> SeaTrial:
         """Create a new sea trial"""
         trial = SeaTrial(**trial_data.model_dump())

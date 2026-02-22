@@ -14,7 +14,8 @@ from app.schemas.sea_trial import (
     SeaTrialResponse,
     SeaTrialAnalysis,
     SeaTrialSummary,
-    TrialStatus
+    TrialStatus,
+    MLPredictionResult
 )
 from app.models.sea_trial import SeaTrial
 
@@ -161,3 +162,37 @@ async def delete_sea_trial(
         raise HTTPException(status_code=404, detail=f"Sea trial {trial_id} not found")
     
     return None
+
+
+@router.post("/{trial_id}/ml-predict", response_model=MLPredictionResult)
+async def run_ml_prediction(
+    trial_id: int,
+    update_trial: bool = Query(True, description="Save ML prediction to trial's predicted_power field"),
+    service: SeaTrialService = Depends(get_sea_trial_service)
+):
+    """
+    Run the integrated XGBoost ML model on a sea trial's environmental conditions
+    to generate a power prediction.
+
+    The model maps the trial's measured vessel and environmental data to the
+    trained feature set:
+    - Speed through water (actual_speed)
+    - Draft (fore + aft)
+    - Wind speed/direction → U/V components
+    - Current speed/direction → U/V components
+    - Wave height
+    - Time since dry dock
+
+    If **update_trial** is True (default), the result is saved back to
+    `predicted_power` on the trial and deviations are recalculated.
+
+    **Requirements**: trial must have `actual_speed`, `draft_fore`, and `draft_aft`
+    set, otherwise a 422 error is returned.
+    """
+    try:
+        result = service.run_ml_prediction(trial_id, update_trial=update_trial)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    if result is None:
+        raise HTTPException(status_code=404, detail=f"Sea trial {trial_id} not found")
+    return result
