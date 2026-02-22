@@ -69,6 +69,9 @@ class SeaTrial(Base):
     contract_fuel = Column(Float)  # tonnes/day
     meets_contract = Column(Integer)  # boolean: 1 = meets, 0 = does not meet
     
+    # ML-specific input features
+    time_since_dry_dock = Column(Float)  # days since last dry dock (ML feature)
+
     # Additional data
     notes = Column(Text)
     test_location = Column(String(200))

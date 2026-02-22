@@ -56,6 +56,9 @@ class SeaTrialBase(BaseModel):
     contract_power: Optional[float] = Field(None, ge=0)
     contract_fuel: Optional[float] = Field(None, ge=0)
     
+    # ML feature
+    time_since_dry_dock: Optional[float] = Field(None, ge=0, description="Days since last dry dock")
+
     # Additional data
     notes: Optional[str] = None
     test_location: Optional[str] = Field(None, max_length=200)
@@ -108,6 +111,9 @@ class SeaTrialUpdate(BaseModel):
     contract_power: Optional[float] = Field(None, ge=0)
     contract_fuel: Optional[float] = Field(None, ge=0)
     
+    # ML feature
+    time_since_dry_dock: Optional[float] = Field(None, ge=0)
+
     # Additional data
     notes: Optional[str] = None
     test_location: Optional[str] = Field(None, max_length=200)
@@ -175,3 +181,14 @@ class SeaTrialSummary(BaseModel):
     avg_speed_deviation: Optional[float] = None
     avg_power_deviation: Optional[float] = None
     avg_fuel_deviation: Optional[float] = None
+
+
+class MLPredictionResult(BaseModel):
+    """Result of running the ML model on a sea trial"""
+    sea_trial_id: int
+    predicted_power_kw: float
+    predicted_power_mw: float
+    updated: bool
+    message: str
+    features_used: dict
+    trial: Optional[SeaTrialResponse] = None
