@@ -1,0 +1,26 @@
+services:
+  - type: web
+    name: propelsense-api
+    runtime: python
+    region: frankfurt # closest to Finland
+    plan: free
+    rootDir: .
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: FRONTEND_URL
+        sync: false # set manually in Render dashboard
+      - key: EXTRA_CORS_ORIGINS
+        sync: false # set manually in Render dashboard
+      - key: DB_USER
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+      - key: DB_HOST
+        sync: false
+      - key: DB_PORT
+        value: "6543"
+      - key: DB_NAME
+        value: "postgres"
+      - key: DEBUG
+        value: "false"

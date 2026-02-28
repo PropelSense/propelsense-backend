@@ -19,7 +19,9 @@ class Settings(BaseSettings):
     
     # CORS
     FRONTEND_URL: str = "http://localhost:3000"
-    
+    # Additional allowed origins (comma-separated), e.g. your Vercel URL
+    EXTRA_CORS_ORIGINS: str = ""
+
     # Database
     DB_USER: str
     DB_PASSWORD: str
@@ -30,11 +32,14 @@ class Settings(BaseSettings):
     @property
     def CORS_ORIGINS(self) -> List[str]:
         """Get CORS origins"""
-        return [
+        origins = [
             self.FRONTEND_URL,
             "http://localhost:3000",
             "http://127.0.0.1:3000",
         ]
+        if self.EXTRA_CORS_ORIGINS:
+            origins += [o.strip() for o in self.EXTRA_CORS_ORIGINS.split(",") if o.strip()]
+        return origins
     
     @property
     def DATABASE_URL(self) -> str:
