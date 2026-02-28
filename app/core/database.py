@@ -60,6 +60,7 @@ def init_db():
     from app.models.propulsion_reading import PropulsionReading
     from app.models.weather_data import WeatherData
     from app.models.ocean_data import OceanData
+    from app.models.report import Report
     
     # Create all tables
     Base.metadata.create_all(bind=engine)
