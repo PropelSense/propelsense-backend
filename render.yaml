@@ -2,6 +2,7 @@ services:
   - type: web
     name: propelsense-api
     runtime: python
+    pythonVersion: "3.11"
     region: frankfurt # closest to Finland
     plan: free
     rootDir: .
