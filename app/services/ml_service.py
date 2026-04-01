@@ -107,16 +107,16 @@ class MLModelService:
             features['awind_ucomp_provider']**2
         )
         features_complete['wind_angle'] = np.arctan2(
-            features['awind_vcomp_provider'],
-            features['awind_ucomp_provider']
+            features['awind_ucomp_provider'],
+            features['awind_vcomp_provider']
         )
         features_complete['current_magnitude'] = np.sqrt(
             features['rcurrent_vcomp']**2 + 
             features['rcurrent_ucomp']**2
         )
         features_complete['current_angle'] = np.arctan2(
-            features['rcurrent_vcomp'],
-            features['rcurrent_ucomp']
+            features['rcurrent_ucomp'],
+            features['rcurrent_vcomp']
         )
         features_complete['speed_wind_interaction'] = (
             features['stw'] * features_complete['wind_magnitude']
