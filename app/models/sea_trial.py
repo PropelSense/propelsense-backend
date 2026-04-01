@@ -71,6 +71,7 @@ class SeaTrial(Base):
     
     # ML-specific input features
     time_since_dry_dock = Column(Float)  # days since last dry dock (ML feature)
+    speed_over_ground = Column(Float)    # knots — used to compute diff_speed_overground for ML
 
     # Additional data
     notes = Column(Text)

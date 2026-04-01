@@ -60,21 +60,28 @@ class SeaTrialService:
         scores = []
         weights = []
         
-        # Speed score (closer to predicted = higher score)
+        # Speed score: deviations in either direction reduce accuracy score
         if trial.speed_deviation is not None:
             speed_score = max(0, 100 - abs(trial.speed_deviation) * 10)
             scores.append(speed_score)
             weights.append(0.4)
         
-        # Power score (lower is better, but close to predicted is ideal)
+        # Power score: using LESS power than predicted is good (no penalty), using MORE is bad.
+        # A negative deviation means actual < predicted → reward it.
         if trial.power_deviation is not None:
-            power_score = max(0, 100 - abs(trial.power_deviation) * 10)
+            if trial.power_deviation <= 0:
+                power_score = 100.0  # at or below predicted — full marks
+            else:
+                power_score = max(0, 100 - trial.power_deviation * 10)
             scores.append(power_score)
             weights.append(0.4)
         
-        # Fuel score (lower is better)
+        # Fuel score: same asymmetric logic as power
         if trial.fuel_deviation is not None:
-            fuel_score = max(0, 100 - abs(trial.fuel_deviation) * 10)
+            if trial.fuel_deviation <= 0:
+                fuel_score = 100.0  # at or below predicted — full marks
+            else:
+                fuel_score = max(0, 100 - trial.fuel_deviation * 10)
             scores.append(fuel_score)
             weights.append(0.2)
         
@@ -87,10 +94,15 @@ class SeaTrialService:
         
         return round(weighted_sum / total_weight, 2)
     
-    def check_contract_compliance(self, trial: SeaTrial) -> bool:
+    def check_contract_compliance(self, trial: SeaTrial) -> Optional[bool]:
         """
-        Check if trial meets contract specifications
-        
+        Check if trial meets contract specifications.
+
+        Returns:
+            True  – all entered contract checks pass
+            False – at least one entered check fails
+            None  – no contract specs have been entered yet (not the same as failing)
+
         Contract is met if:
         - Actual speed >= contract speed (or within 2%)
         - Actual power <= contract power (or within 5%)
@@ -110,8 +122,11 @@ class SeaTrialService:
             fuel_ok = trial.actual_fuel_consumption <= (trial.contract_fuel * 1.05)
             checks.append(fuel_ok)
         
-        # All checks must pass
-        return all(checks) if checks else False
+        # Return None when no contract specs have been entered yet — not the same
+        # as failing compliance.  All provided checks must pass to return True.
+        if not checks:
+            return None
+        return all(checks)
     
     def update_trial_analysis(self, trial: SeaTrial) -> SeaTrial:
         """
@@ -128,11 +143,16 @@ class SeaTrialService:
         trial.power_deviation = self.calculate_deviation(trial.predicted_power, trial.actual_power)
         trial.fuel_deviation = self.calculate_deviation(trial.predicted_fuel_consumption, trial.actual_fuel_consumption)
         
+        # Auto-calculate trim from drafts whenever both are available
+        if trial.draft_aft is not None and trial.draft_fore is not None:
+            trial.trim = round(trial.draft_aft - trial.draft_fore, 4)
+        
         # Calculate overall performance score
         trial.overall_performance_score = self.calculate_performance_score(trial)
         
-        # Check contract compliance
-        trial.meets_contract = 1 if self.check_contract_compliance(trial) else 0
+        # Check contract compliance (None when no contract specs were provided)
+        compliance = self.check_contract_compliance(trial)
+        trial.meets_contract = None if compliance is None else (1 if compliance else 0)
         
         return trial
     
@@ -175,17 +195,32 @@ class SeaTrialService:
         rcurrent_ucomp = current_speed_ms * math.cos(current_dir_rad)
         rcurrent_vcomp = current_speed_ms * math.sin(current_dir_rad)
 
+        # diff_speed_overground = STW - SOG (positive = currents opposing vessel).
+        # Use recorded speed_over_ground when available; otherwise fall back to 0.
+        if trial.speed_over_ground is not None:
+            diff_sog = float(stw) - float(trial.speed_over_ground)
+        else:
+            diff_sog = 0.0
+
+        # timeSinceDryDock: the model was trained on (minutes / 4_324_320) so that
+        # fresh-out-of-dry-dock ≈ 0 and ~8 years ≈ 1.  Convert stored days to that
+        # same normalised scale: days × 1440 min/day ÷ 4_324_320.
+        _TIME_MAX_MINUTES = 4_324_320
+        time_since_dry_dock_normalised = (
+            float(trial.time_since_dry_dock or 0.0) * 1440.0 / _TIME_MAX_MINUTES
+        )
+
         features = {
             "draft_aft_telegram": float(draft_aft),
             "draft_fore_telegram": float(draft_fore),
             "stw": float(stw),
-            "diff_speed_overground": 0.0,
+            "diff_speed_overground": diff_sog,
             "awind_vcomp_provider": awind_vcomp,
             "awind_ucomp_provider": awind_ucomp,
             "rcurrent_vcomp": rcurrent_vcomp,
             "rcurrent_ucomp": rcurrent_ucomp,
             "comb_wind_swell_wave_height": float(trial.wave_height or 0.0),
-            "timeSinceDryDock": float(trial.time_since_dry_dock or 0.0),
+            "timeSinceDryDock": time_since_dry_dock_normalised,
         }
 
         try:
@@ -369,7 +404,8 @@ class SeaTrialService:
             fuel_comparison=fuel_comp,
             rpm_comparison=rpm_comp,
             overall_performance_score=trial.overall_performance_score or 0,
-            meets_contract=bool(trial.meets_contract),
+            # None when no contract specs have been entered; True/False otherwise
+            meets_contract=None if trial.meets_contract is None else bool(trial.meets_contract),
             summary=summary,
             recommendations=recommendations
         )
@@ -445,12 +481,19 @@ class SeaTrialService:
             return f"Trial is currently {trial.status.value}"
         
         score = trial.overall_performance_score or 0
-        meets = "meets" if trial.meets_contract else "does not meet"
-        
-        return f"Sea trial completed with performance score of {score:.1f}/100. Vessel {meets} contract specifications."
+        if trial.meets_contract is None:
+            compliance_text = "no contract specifications entered"
+        elif trial.meets_contract:
+            compliance_text = "meets contract specifications"
+        else:
+            compliance_text = "does not meet contract specifications"
+        return f"Sea trial completed with performance score of {score:.1f}/100. Vessel {compliance_text}."
     
     def _generate_recommendations(self, trial: SeaTrial) -> List[str]:
         """Generate recommendations based on trial results"""
+        if trial.status != TrialStatus.COMPLETED:
+            return [f"No recommendations yet — trial is currently {trial.status.value.replace('_', ' ')}"]
+
         recommendations = []
         
         if trial.speed_deviation and abs(trial.speed_deviation) > 5:
@@ -465,7 +508,7 @@ class SeaTrialService:
         if trial.fuel_deviation and trial.fuel_deviation > 10:
             recommendations.append("Fuel consumption higher than predicted - review engine tuning")
         
-        if not trial.meets_contract:
+        if trial.meets_contract == 0:  # explicitly failed, not just absent
             recommendations.append("Contract specifications not met - consider corrective actions")
         
         if trial.overall_performance_score and trial.overall_performance_score > 90:

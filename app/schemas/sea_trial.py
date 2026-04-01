@@ -56,8 +56,13 @@ class SeaTrialBase(BaseModel):
     contract_power: Optional[float] = Field(None, ge=0)
     contract_fuel: Optional[float] = Field(None, ge=0)
     
-    # ML feature
+    # ML features
     time_since_dry_dock: Optional[float] = Field(None, ge=0, description="Days since last dry dock")
+    speed_over_ground: Optional[float] = Field(
+        None, ge=0,
+        description="Speed over ground (knots). Used with actual_speed to compute "
+                    "diff_speed_overground for the ML model (STW − SOG)."
+    )
 
     # Additional data
     notes: Optional[str] = None
@@ -111,8 +116,9 @@ class SeaTrialUpdate(BaseModel):
     contract_power: Optional[float] = Field(None, ge=0)
     contract_fuel: Optional[float] = Field(None, ge=0)
     
-    # ML feature
+    # ML features
     time_since_dry_dock: Optional[float] = Field(None, ge=0)
+    speed_over_ground: Optional[float] = Field(None, ge=0)
 
     # Additional data
     notes: Optional[str] = None
@@ -167,7 +173,7 @@ class SeaTrialAnalysis(BaseModel):
     
     # Overall assessment
     overall_performance_score: float
-    meets_contract: bool
+    meets_contract: Optional[bool] = None  # None = no contract specs entered yet
     summary: str
     recommendations: list[str]
 
